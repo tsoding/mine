@@ -215,6 +215,7 @@ begin
                     Write(Chr(27), '[', MainField.Rows,   'A');
                     Write(Chr(27), '[', MainField.Cols*3, 'D');
                     FieldWrite(MainField);
+                    {TODO: restart the game after death}
                     WriteLn('Oops!');
                     break;
                  end;
