@@ -46,6 +46,7 @@ type
       FieldOpenAtCursor := Field.Cells[Index];
    end;
 
+   {TODO: Open only unflagged bomb. Also indicate false flags somehow}
    procedure FieldOpenBombs(var Field: Field);
    var
       Index: Integer;
@@ -155,6 +156,7 @@ type
                                end;
                      end;
                Closed: Write('.');
+               {TODO: flag does not stand out enough}
                Flagged: Write('P');
             end;
             if FieldAtCursor(Field, Row, Col) then Write(']') else Write(' ');
