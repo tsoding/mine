@@ -1,3 +1,4 @@
+{ -*- mode: opascal -*- }
 program Mine;
 
 uses Termio;
@@ -35,6 +36,7 @@ type
       end
    end;
 
+   {TODO: flood fill open where it makes sense}
    function FieldOpenAtCursor(var Field: Field): Cell;
    var
       Index : Integer;
@@ -53,15 +55,20 @@ type
             Field.States[Index] := Open;
    end;
 
+   function FieldContains(Field: Field; Row, Col: Integer): Boolean;
+   begin
+      FieldContains := (0 <= Row) and (Row < Field.Rows) and (0 <= Col) and (Col < Field.Cols);
+   end;
+
    function FieldCheckedGet(Field: Field; Row, Col: Integer; var Cell: Cell): Boolean;
    begin
-      FieldCheckedGet := (0 <= Row) and (Row < Field.Rows) and (0 <= Col) and (Col < Field.Cols);
+      FieldCheckedGet := FieldContains(Field, Row, Col);
       if FieldCheckedGet then Cell := FieldGet(Field, Row, Col);
    end;
 
    procedure FieldSet(var Field: Field; Row, Col: Integer; Cell: Cell);
    begin
-      Field.Cells[Row*Field.Cols + Col] := Cell;
+      if FieldContains(Field, Row, Col) then Field.Cells[Row*Field.Cols + Col] := Cell;
    end;
 
    procedure FieldResize(var Field: Field; Rows, Cols: Integer);
@@ -148,7 +155,7 @@ type
                                end;
                      end;
                Closed: Write('.');
-               Flagged: Write('?');
+               Flagged: Write('P');
             end;
             if FieldAtCursor(Field, Row, Col) then Write(']') else Write(' ');
          end;
@@ -166,13 +173,15 @@ var
    Cmd: Char;
 begin
    Randomize;
+   {TODO: customizable size of the field}
    FieldResize(MainField, 10, 10);
 
    if IsATTY(STDIN_FILENO) = 0 then
    begin
       WriteLn('ERROR: this is not a terminal!');
-      Exit;
+      Halt(1);
    end;
+   {TODO: does not work on Windows}
    TCGetAttr(STDIN_FILENO, TAttr);
    TCGetAttr(STDIN_FILENO, SavedTAttr);
    TAttr.c_lflag := TAttr.c_lflag and (not (ICANON or ECHO));
@@ -192,6 +201,7 @@ begin
          'a': if MainField.CursorCol > 0                then dec(MainField.CursorCol);
          'd': if MainField.CursorCol < MainField.Cols-1 then inc(MainField.CursorCol);
          'f': FieldFlagAtCursor(MainField);
+         {TODO: restart the game on `r`}
          'q': break; {TODO: ask the user if they really want to exit. In case of accedental press of `q`}
          ' ': begin
                  if First then
