@@ -4,9 +4,10 @@ uses Termio;
 
 type
    Cell = (Empty, Bomb);
+   State = (Closed, Open, Flagged);
    Field = record
       Cells: array of Cell;
-      Open: array of Boolean;
+      States: array of State;
       Rows: Integer;
       Cols: Integer;
       CursorRow: Integer;
@@ -18,9 +19,20 @@ type
       FieldGet := Field.Cells[Row*Field.Cols + Col];
    end;
 
-   function FieldIsOpen(Field: Field; Row, Col: Integer): Boolean;
+   function FieldGetState(Field: Field; Row, Col: Integer): State;
    begin
-      FieldIsOpen := Field.Open[Row*Field.Cols + Col];
+      FieldGetState := Field.States[Row*Field.Cols + Col];
+   end;
+
+   procedure FieldFlagAtCursor(var Field: Field);
+   var
+      Index : Integer;
+   begin
+      Index := Field.CursorRow*Field.Cols + Field.CursorCol;
+      case Field.States[Index] of
+         Closed: Field.States[Index] := Flagged;
+         Flagged: Field.States[Index] := Closed;
+      end
    end;
 
    function FieldOpenAtCursor(var Field: Field): Cell;
@@ -28,7 +40,7 @@ type
       Index : Integer;
    begin
       Index := Field.CursorRow*Field.Cols + Field.CursorCol;
-      Field.Open[Index] := True;
+      Field.States[Index] := Open;
       FieldOpenAtCursor := Field.Cells[Index];
    end;
 
@@ -38,7 +50,7 @@ type
    begin
       for Index := 0 to Field.Rows*Field.Cols do
          if Field.Cells[Index] = Bomb then
-            Field.Open[Index] := True;
+            Field.States[Index] := Open;
    end;
 
    function FieldCheckedGet(Field: Field; Row, Col: Integer; var Cell: Cell): Boolean;
@@ -59,10 +71,10 @@ type
       Field.CursorRow := 0;
       Field.CursorCol := 0;
       SetLength(Field.Cells, Rows*Cols);
-      SetLength(Field.Open, Rows*Cols);
+      SetLength(Field.States, Rows*Cols);
       Field.Rows := Rows;
       Field.Cols := Cols;
-      for Index := 0 to Rows*Cols do Field.Open[Index] := False;
+      for Index := 0 to Rows*Cols do Field.States[Index] := Closed;
    end;
 
    function FieldRandomCell(Field: Field; var Row, Col: Integer): Cell;
@@ -127,15 +139,17 @@ type
          for Col := 0 to Field.Cols-1 do
          begin
             if FieldAtCursor(Field, Row, Col) then Write('[') else Write(' ');
-            if FieldIsOpen(Field, Row, Col) then
-               case FieldGet(Field, Row, Col) of
-                  Bomb: Write('@');
-                  Empty: begin
-                            Nbors := FieldCountNbors(Field, Row, Col);
-                            if Nbors > 0 then Write(Nbors) else Write(' ');
-                         end;
-               end
-            else Write('.');
+            case FieldGetState(Field, Row, Col) of
+               Open: case FieldGet(Field, Row, Col) of
+                        Bomb: Write('@');
+                        Empty: begin
+                                  Nbors := FieldCountNbors(Field, Row, Col);
+                                  if Nbors > 0 then Write(Nbors) else Write(' ');
+                               end;
+                     end;
+               Closed: Write('.');
+               Flagged: Write('?');
+            end;
             if FieldAtCursor(Field, Row, Col) then Write(']') else Write(' ');
          end;
          WriteLn
@@ -178,6 +192,7 @@ begin
          's': if MainField.CursorRow < MainField.Rows-1 then inc(MainField.CursorRow);
          'a': if MainField.CursorCol > 0                then dec(MainField.CursorCol);
          'd': if MainField.CursorCol < MainField.Cols-1 then inc(MainField.CursorCol);
+         'f': FieldFlagAtCursor(MainField);
          ' ': begin
                  if First then
                  begin
