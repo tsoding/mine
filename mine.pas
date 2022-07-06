@@ -192,6 +192,7 @@ begin
          'a': if MainField.CursorCol > 0                then dec(MainField.CursorCol);
          'd': if MainField.CursorCol < MainField.Cols-1 then inc(MainField.CursorCol);
          'f': FieldFlagAtCursor(MainField);
+         'q': break; {TODO: ask the user if they really want to exit. In case of accedental press of `q`}
          ' ': begin
                  if First then
                  begin
