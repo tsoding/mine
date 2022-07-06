@@ -161,7 +161,6 @@ const
 
 var
    MainField: Field;
-   Quit: Boolean = False;
    First: Boolean = False;
    SavedTAttr, TAttr: Termios;
    Cmd: Char;
@@ -184,7 +183,7 @@ begin
    FieldWrite(MainField);
 
    First := True;
-   while not Quit do
+   while True do
    begin
       Read(Cmd);
       case Cmd of
