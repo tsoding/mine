@@ -1,5 +1,7 @@
 # Terminal Minesweeper
 
+![thumbnail](./thumbnail.png)
+
 ## Quick Start
 
 It's written in [Free Pascal](https://www.freepascal.org/download.html) (sorry about that).
