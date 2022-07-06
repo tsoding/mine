@@ -23,9 +23,22 @@ type
       FieldIsOpen := Field.Open[Row*Field.Cols + Col];
    end;
 
-   procedure FieldOpenAtCursor(var Field: Field);
+   function FieldOpenAtCursor(var Field: Field): Cell;
+   var
+      Index : Integer;
    begin
-      Field.Open[Field.CursorRow*Field.Cols + Field.CursorCol] := True;
+      Index := Field.CursorRow*Field.Cols + Field.CursorCol;
+      Field.Open[Index] := True;
+      FieldOpenAtCursor := Field.Cells[Index];
+   end;
+
+   procedure FieldOpenBombs(var Field: Field);
+   var
+      Index: Integer;
+   begin
+      for Index := 0 to Field.Rows*Field.Cols do
+         if Field.Cells[Index] = Bomb then
+            Field.Open[Index] := True;
    end;
 
    function FieldCheckedGet(Field: Field; Row, Col: Integer; var Cell: Cell): Boolean;
@@ -40,11 +53,16 @@ type
    end;
 
    procedure FieldResize(var Field: Field; Rows, Cols: Integer);
+   var
+      Index: Integer;
    begin
+      Field.CursorRow := 0;
+      Field.CursorCol := 0;
       SetLength(Field.Cells, Rows*Cols);
       SetLength(Field.Open, Rows*Cols);
       Field.Rows := Rows;
       Field.Cols := Cols;
+      for Index := 0 to Rows*Cols do Field.Open[Index] := False;
    end;
 
    function FieldRandomCell(Field: Field; var Row, Col: Integer): Cell;
@@ -54,23 +72,34 @@ type
       FieldRandomCell := FieldGet(Field, Row, Col);
    end;
 
+   function FieldAtCursor(Field: Field; Row, Col: Integer): Boolean;
+   begin
+      FieldAtCursor := (Field.CursorRow = Row) and (Field.CursorCol = Col);
+   end;
+
+   function FieldAroundCursor(Field: Field; Row, Col: Integer): Boolean;
+   var
+      DRow, DCol: Integer;
+   begin
+      for DRow := -1 to 1 do
+         for DCol := -1 to 1 do
+            if (Field.CursorRow + DRow = Row) and (Field.CursorCol + DCol = Col) then
+               Exit(True);
+      FieldAroundCursor := False;
+   end;
+
    procedure FieldRandomize(var Field: Field; BombsPercentage: Integer);
    var
       Index, BombsCount: Integer;
       Row, Col: Integer;
    begin
-      Field.CursorRow := 0;
-      Field.CursorCol := 0;
-      for Index := 0 to Field.Rows*Field.Cols do
-      begin
-         Field.Cells[Index] := Empty;
-         Field.Open[Index] := False;
-      end;
+      for Index := 0 to Field.Rows*Field.Cols do Field.Cells[Index] := Empty;
       if BombsPercentage > 100 then BombsPercentage := 100;
       BombsCount := (Field.Rows*Field.Cols*BombsPercentage + 99) div 100;
       for Index := 1 to BombsCount do
       begin
-         while FieldRandomCell(Field, Row, Col) = Bomb do;
+         { TODO: prevent this loop going indefinetly }
+         while (FieldRandomCell(Field, Row, Col) = Bomb) or FieldAroundCursor(Field, Row, Col) do;
          FieldSet(Field, Row, Col, Bomb);
       end;
    end;
@@ -89,11 +118,6 @@ type
                      inc(FieldCountNbors);
    end;
 
-   function FieldAtCursor(Field: Field; Row, Col: Integer): Boolean;
-   begin
-      FieldAtCursor := (Field.CursorRow = Row) and (Field.CursorCol = Col);
-   end;
-
    procedure FieldWrite(Field: Field);
    var
       Row, Col, Nbors: Integer;
@@ -105,13 +129,13 @@ type
             if FieldAtCursor(Field, Row, Col) then Write('[') else Write(' ');
             if FieldIsOpen(Field, Row, Col) then
                case FieldGet(Field, Row, Col) of
-                  Bomb: Write('*');
+                  Bomb: Write('@');
                   Empty: begin
                             Nbors := FieldCountNbors(Field, Row, Col);
                             if Nbors > 0 then Write(Nbors) else Write(' ');
                          end;
                end
-            else Write('#');
+            else Write('.');
             if FieldAtCursor(Field, Row, Col) then Write(']') else Write(' ');
          end;
          WriteLn
@@ -124,12 +148,12 @@ const
 var
    MainField: Field;
    Quit: Boolean = False;
-   TAttr: Termios;
+   First: Boolean = False;
+   SavedTAttr, TAttr: Termios;
    Cmd: Char;
 begin
    Randomize;
    FieldResize(MainField, 10, 10);
-   FieldRandomize(MainField, 20);
 
    if IsATTY(STDIN_FILENO) = 0 then
    begin
@@ -137,6 +161,7 @@ begin
       Exit;
    end;
    TCGetAttr(STDIN_FILENO, TAttr);
+   TCGetAttr(STDIN_FILENO, SavedTAttr);
    TAttr.c_lflag := TAttr.c_lflag and (not (ICANON or ECHO));
    TAttr.c_cc[VMIN] := 1;
    TAttr.c_cc[VTIME] := 0;
@@ -144,6 +169,7 @@ begin
 
    FieldWrite(MainField);
 
+   First := True;
    while not Quit do
    begin
       Read(Cmd);
@@ -152,10 +178,27 @@ begin
          's': if MainField.CursorRow < MainField.Rows-1 then inc(MainField.CursorRow);
          'a': if MainField.CursorCol > 0                then dec(MainField.CursorCol);
          'd': if MainField.CursorCol < MainField.Cols-1 then inc(MainField.CursorCol);
-         ' ': FieldOpenAtCursor(MainField);
+         ' ': begin
+                 if First then
+                 begin
+                    FieldRandomize(MainField, 20);
+                    First := False;
+                 end;
+                 if FieldOpenAtCursor(MainField) = Bomb then
+                 begin
+                    FieldOpenBombs(MainField);
+                    Write(Chr(27), '[', MainField.Rows,   'A');
+                    Write(Chr(27), '[', MainField.Cols*3, 'D');
+                    FieldWrite(MainField);
+                    WriteLn('Oops!');
+                    break;
+                 end;
+              end;
       end;
       Write(Chr(27), '[', MainField.Rows,   'A');
       Write(Chr(27), '[', MainField.Cols*3, 'D');
       FieldWrite(MainField);
    end;
+
+   TCSetAttr(STDIN_FILENO, TCSANOW, SavedTAttr);
 end.
