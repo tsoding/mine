@@ -7,53 +7,43 @@ type
    Cell = (Empty, Bomb);
    State = (Closed, Open, Flagged);
    Field = record
-      Cells: array of Cell;
-      States: array of State;
+      Cells: array of array of Cell;
+      States: array of array of State;
       Rows: Integer;
       Cols: Integer;
       CursorRow: Integer;
       CursorCol: Integer;
    end;
 
-   function FieldGet(Field: Field; Row, Col: Integer): Cell;
+   procedure FlagAtCursor(var Field: Field);
    begin
-      FieldGet := Field.Cells[Row*Field.Cols + Col];
-   end;
-
-   function FieldGetState(Field: Field; Row, Col: Integer): State;
-   begin
-      FieldGetState := Field.States[Row*Field.Cols + Col];
-   end;
-
-   procedure FieldFlagAtCursor(var Field: Field);
-   var
-      Index : Integer;
-   begin
-      Index := Field.CursorRow*Field.Cols + Field.CursorCol;
-      case Field.States[Index] of
-         Closed: Field.States[Index] := Flagged;
-         Flagged: Field.States[Index] := Closed;
-      end
+      with Field do
+         case States[CursorRow][CursorCol] of
+            Closed:  States[CursorRow][CursorCol] := Flagged;
+            Flagged: States[CursorRow][CursorCol] := Closed;
+         end
    end;
 
    {TODO: flood fill open where it makes sense}
-   function FieldOpenAtCursor(var Field: Field): Cell;
-   var
-      Index : Integer;
+   function OpenAtCursor(var Field: Field): Cell;
    begin
-      Index := Field.CursorRow*Field.Cols + Field.CursorCol;
-      Field.States[Index] := Open;
-      FieldOpenAtCursor := Field.Cells[Index];
+      with Field do
+      begin
+         States[CursorRow][CursorCol] := Open;
+         OpenAtCursor := Cells[CursorRow][CursorCol];
+      end
    end;
 
    {TODO: Open only unflagged bomb. Also indicate false flags somehow}
-   procedure FieldOpenBombs(var Field: Field);
+   procedure OpenAllBombs(var Field: Field);
    var
-      Index: Integer;
+      Row, Col: Integer;
    begin
-      for Index := 0 to Field.Rows*Field.Cols do
-         if Field.Cells[Index] = Bomb then
-            Field.States[Index] := Open;
+      with Field do
+         for Row := 0 to Rows - 1 do
+            for Col := 0 to Cols - 1 do
+               if Cells[Row][Col] = Bomb then
+                  States[Row][Col] := Open;
    end;
 
    function FieldContains(Field: Field; Row, Col: Integer): Boolean;
@@ -61,43 +51,33 @@ type
       FieldContains := (0 <= Row) and (Row < Field.Rows) and (0 <= Col) and (Col < Field.Cols);
    end;
 
-   function FieldCheckedGet(Field: Field; Row, Col: Integer; var Cell: Cell): Boolean;
-   begin
-      FieldCheckedGet := FieldContains(Field, Row, Col);
-      if FieldCheckedGet then Cell := FieldGet(Field, Row, Col);
-   end;
-
-   procedure FieldSet(var Field: Field; Row, Col: Integer; Cell: Cell);
-   begin
-      if FieldContains(Field, Row, Col) then Field.Cells[Row*Field.Cols + Col] := Cell;
-   end;
-
    procedure FieldResize(var Field: Field; Rows, Cols: Integer);
    var
-      Index: Integer;
+      Row, Col: Integer;
    begin
       Field.CursorRow := 0;
       Field.CursorCol := 0;
-      SetLength(Field.Cells, Rows*Cols);
-      SetLength(Field.States, Rows*Cols);
+      SetLength(Field.Cells, Rows, Cols);
+      SetLength(Field.States, Rows, Cols);
       Field.Rows := Rows;
       Field.Cols := Cols;
-      for Index := 0 to Rows*Cols do Field.States[Index] := Closed;
+      for Row := 0 to Rows - 1 do
+          for Col := 0 to Cols - 1 do
+             Field.States[Row][Col] := Closed;
    end;
 
-   function FieldRandomCell(Field: Field; var Row, Col: Integer): Cell;
+   procedure RandomCell(Field: Field; var Row, Col: Integer);
    begin
       Row := Random(Field.Rows);
       Col := Random(Field.Cols);
-      FieldRandomCell := FieldGet(Field, Row, Col);
    end;
 
-   function FieldAtCursor(Field: Field; Row, Col: Integer): Boolean;
+   function IsAtCursor(Field: Field; Row, Col: Integer): Boolean;
    begin
-      FieldAtCursor := (Field.CursorRow = Row) and (Field.CursorCol = Col);
+      IsAtCursor := (Field.CursorRow = Row) and (Field.CursorCol = Col);
    end;
 
-   function FieldAroundCursor(Field: Field; Row, Col: Integer): Boolean;
+   function IsAroundCursor(Field: Field; Row, Col: Integer): Boolean;
    var
       DRow, DCol: Integer;
    begin
@@ -105,7 +85,7 @@ type
          for DCol := -1 to 1 do
             if (Field.CursorRow + DRow = Row) and (Field.CursorCol + DCol = Col) then
                Exit(True);
-      FieldAroundCursor := False;
+      IsAroundCursor := False;
    end;
 
    procedure FieldRandomize(var Field: Field; BombsPercentage: Integer);
@@ -113,56 +93,64 @@ type
       Index, BombsCount: Integer;
       Row, Col: Integer;
    begin
-      for Index := 0 to Field.Rows*Field.Cols do Field.Cells[Index] := Empty;
-      if BombsPercentage > 100 then BombsPercentage := 100;
-      BombsCount := (Field.Rows*Field.Cols*BombsPercentage + 99) div 100;
-      for Index := 1 to BombsCount do
+      with Field do
       begin
-         { TODO: prevent this loop going indefinetly }
-         while (FieldRandomCell(Field, Row, Col) = Bomb) or FieldAroundCursor(Field, Row, Col) do;
-         FieldSet(Field, Row, Col, Bomb);
+         for Row := 0 to Rows - 1 do
+            for Col := 0 to Cols - 1 do
+               Cells[Row][Col] := Empty;
+         if BombsPercentage > 100 then BombsPercentage := 100;
+         BombsCount := (Rows*Cols*BombsPercentage + 99) div 100;
+         for Index := 1 to BombsCount do
+         begin
+            { TODO: prevent this loop going indefinetly }
+            repeat
+               RandomCell(Field, Row, Col)
+            until (Cells[Row][Col] <> Bomb) and not IsAroundCursor(Field, Row, Col);
+            Cells[Row][Col] := Bomb;
+         end;
       end;
    end;
 
-   function FieldCountNbors(Field: Field; Row, Col: Integer): Integer;
+   function CountNeighborBombs(Field: Field; Row, Col: Integer): Integer;
    var
       DRow, DCol: Integer;
-      C: Cell;
    begin
-      FieldCountNbors := 0;
-      for DRow := -1 to 1 do
-         for DCol := -1 to 1 do
-            if (DRow <> 0) or (DCol <> 0) then
-               if FieldCheckedGet(Field, Row + DRow, Col + DCol, C) then
-                  if C = Bomb then
-                     inc(FieldCountNbors);
+      CountNeighborBombs := 0;
+      with Field do
+         for DRow := -1 to 1 do
+            for DCol := -1 to 1 do
+               if (DRow <> 0) or (DCol <> 0) then
+                  if FieldContains(Field, Row + DRow, Col + DCol) then
+                     if Cells[Row + DRow][Col + DCol] = Bomb then
+                        inc(CountNeighborBombs);
    end;
 
-   procedure FieldWrite(Field: Field);
+   procedure FieldDisplay(Field: Field);
    var
       Row, Col, Nbors: Integer;
    begin
-      for Row := 0 to Field.Rows-1 do
-      begin
-         for Col := 0 to Field.Cols-1 do
+      with Field do
+         for Row := 0 to Rows-1 do
          begin
-            if FieldAtCursor(Field, Row, Col) then Write('[') else Write(' ');
-            case FieldGetState(Field, Row, Col) of
-               Open: case FieldGet(Field, Row, Col) of
-                        Bomb: Write('@');
-                        Empty: begin
-                                  Nbors := FieldCountNbors(Field, Row, Col);
-                                  if Nbors > 0 then Write(Nbors) else Write(' ');
-                               end;
-                     end;
-               Closed: Write('.');
-               {TODO: flag does not stand out enough}
-               Flagged: Write('P');
+            for Col := 0 to Cols-1 do
+            begin
+               if IsAtCursor(Field, Row, Col) then Write('[') else Write(' ');
+               case States[Row][Col] of
+                  Open: case Cells[Row][Col] of
+                           Bomb: Write('@');
+                           Empty: begin
+                                     Nbors := CountNeighborBombs(Field, Row, Col);
+                                     if Nbors > 0 then Write(Nbors) else Write(' ');
+                                  end;
+                        end;
+                  Closed: Write('.');
+                  {TODO: flag does not stand out enough}
+                  Flagged: Write('P');
+               end;
+               if IsAtCursor(Field, Row, Col) then Write(']') else Write(' ');
             end;
-            if FieldAtCursor(Field, Row, Col) then Write(']') else Write(' ');
-         end;
-         WriteLn
-      end
+            WriteLn
+         end
    end;
 
 const
@@ -170,7 +158,7 @@ const
 
 var
    MainField: Field;
-   First: Boolean = False;
+   First: Boolean;
    SavedTAttr, TAttr: Termios;
    Cmd: Char;
 begin
@@ -191,7 +179,7 @@ begin
    TAttr.c_cc[VTIME] := 0;
    TCSetAttr(STDIN_FILENO, TCSAFLUSH, &tattr);
 
-   FieldWrite(MainField);
+   FieldDisplay(MainField);
 
    First := True;
    while True do
@@ -202,7 +190,7 @@ begin
          's': if MainField.CursorRow < MainField.Rows-1 then inc(MainField.CursorRow);
          'a': if MainField.CursorCol > 0                then dec(MainField.CursorCol);
          'd': if MainField.CursorCol < MainField.Cols-1 then inc(MainField.CursorCol);
-         'f': FieldFlagAtCursor(MainField);
+         'f': FlagAtCursor(MainField);
          {TODO: restart the game on `r`}
          'q': break; {TODO: ask the user if they really want to exit. In case of accedental press of `q`}
          ' ': begin
@@ -212,12 +200,12 @@ begin
                     First := False;
                  end;
                  {TODO: Victory condition (with a restart)}
-                 if FieldOpenAtCursor(MainField) = Bomb then
+                 if OpenAtCursor(MainField) = Bomb then
                  begin
-                    FieldOpenBombs(MainField);
+                    OpenAllBombs(MainField);
                     Write(Chr(27), '[', MainField.Rows,   'A');
                     Write(Chr(27), '[', MainField.Cols*3, 'D');
-                    FieldWrite(MainField);
+                    FieldDisplay(MainField);
                     {TODO: restart the game after death}
                     WriteLn('Oops!');
                     break;
@@ -226,7 +214,7 @@ begin
       end;
       Write(Chr(27), '[', MainField.Rows,   'A');
       Write(Chr(27), '[', MainField.Cols*3, 'D');
-      FieldWrite(MainField);
+      FieldDisplay(MainField);
    end;
 
    TCSetAttr(STDIN_FILENO, TCSANOW, SavedTAttr);
