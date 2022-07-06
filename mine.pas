@@ -209,6 +209,7 @@ begin
                     FieldRandomize(MainField, 20);
                     First := False;
                  end;
+                 {TODO: Victory condition (with a restart)}
                  if FieldOpenAtCursor(MainField) = Bomb then
                  begin
                     FieldOpenBombs(MainField);
