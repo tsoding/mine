@@ -7,6 +7,7 @@ type
    Cell = (Empty, Bomb);
    State = (Closed, Open, Flagged);
    Field = record
+      Generated: Boolean;
       Cells: array of array of Cell;
       States: array of array of State;
       Rows: Integer;
@@ -24,57 +25,10 @@ type
          end
    end;
 
-   {TODO: flood fill open where it makes sense}
-   function OpenAtCursor(var Field: Field): Cell;
-   begin
-      with Field do
-      begin
-         States[CursorRow][CursorCol] := Open;
-         OpenAtCursor := Cells[CursorRow][CursorCol];
-      end
-   end;
-
-   {TODO: Open only unflagged bomb. Also indicate false flags somehow}
-   procedure OpenAllBombs(var Field: Field);
-   var
-      Row, Col: Integer;
-   begin
-      with Field do
-         for Row := 0 to Rows - 1 do
-            for Col := 0 to Cols - 1 do
-               if Cells[Row][Col] = Bomb then
-                  States[Row][Col] := Open;
-   end;
-
-   function FieldContains(Field: Field; Row, Col: Integer): Boolean;
-   begin
-      FieldContains := (0 <= Row) and (Row < Field.Rows) and (0 <= Col) and (Col < Field.Cols);
-   end;
-
-   procedure FieldResize(var Field: Field; Rows, Cols: Integer);
-   var
-      Row, Col: Integer;
-   begin
-      Field.CursorRow := 0;
-      Field.CursorCol := 0;
-      SetLength(Field.Cells, Rows, Cols);
-      SetLength(Field.States, Rows, Cols);
-      Field.Rows := Rows;
-      Field.Cols := Cols;
-      for Row := 0 to Rows - 1 do
-          for Col := 0 to Cols - 1 do
-             Field.States[Row][Col] := Closed;
-   end;
-
    procedure RandomCell(Field: Field; var Row, Col: Integer);
    begin
       Row := Random(Field.Rows);
       Col := Random(Field.Cols);
-   end;
-
-   function IsAtCursor(Field: Field; Row, Col: Integer): Boolean;
-   begin
-      IsAtCursor := (Field.CursorRow = Row) and (Field.CursorCol = Col);
    end;
 
    function IsAroundCursor(Field: Field; Row, Col: Integer): Boolean;
@@ -109,6 +63,60 @@ type
             Cells[Row][Col] := Bomb;
          end;
       end;
+   end;
+
+   {TODO: flood fill open where it makes sense}
+   function OpenAtCursor(var Field: Field): Cell;
+   begin
+      with Field do
+      begin
+         if not Generated then
+         begin
+            FieldRandomize(Field, 20);
+            Generated := True;
+         end;
+
+         States[CursorRow][CursorCol] := Open;
+         OpenAtCursor := Cells[CursorRow][CursorCol];
+      end
+   end;
+
+   {TODO: Open only unflagged bomb. Also indicate false flags somehow}
+   procedure OpenAllBombs(var Field: Field);
+   var
+      Row, Col: Integer;
+   begin
+      with Field do
+         for Row := 0 to Rows - 1 do
+            for Col := 0 to Cols - 1 do
+               if Cells[Row][Col] = Bomb then
+                  States[Row][Col] := Open;
+   end;
+
+   function FieldContains(Field: Field; Row, Col: Integer): Boolean;
+   begin
+      FieldContains := (0 <= Row) and (Row < Field.Rows) and (0 <= Col) and (Col < Field.Cols);
+   end;
+
+   procedure FieldReset(var Field: Field; Rows, Cols: Integer);
+   var
+      Row, Col: Integer;
+   begin
+      Field.Generated := False;
+      Field.CursorRow := 0;
+      Field.CursorCol := 0;
+      SetLength(Field.Cells, Rows, Cols);
+      SetLength(Field.States, Rows, Cols);
+      Field.Rows := Rows;
+      Field.Cols := Cols;
+      for Row := 0 to Rows - 1 do
+          for Col := 0 to Cols - 1 do
+             Field.States[Row][Col] := Closed;
+   end;
+
+   function IsAtCursor(Field: Field; Row, Col: Integer): Boolean;
+   begin
+      IsAtCursor := (Field.CursorRow = Row) and (Field.CursorCol = Col);
    end;
 
    function CountNeighborBombs(Field: Field; Row, Col: Integer): Integer;
@@ -153,18 +161,37 @@ type
          end
    end;
 
+   procedure MoveUp(var Field: Field);
+   begin
+      with Field do if CursorRow > 0 then dec(CursorRow);
+   end;
+
+   procedure MoveDown(var Field: Field);
+   begin
+      with Field do if CursorRow < Rows-1 then inc(CursorRow);
+   end;
+
+   procedure MoveLeft(var Field: Field);
+   begin
+      with Field do if CursorCol > 0 then dec(CursorCol);
+   end;
+
+   procedure MoveRight(var Field: Field);
+   begin
+      with Field do if CursorCol < Cols-1 then inc(CursorCol);
+   end;
+
 const
    STDIN_FILENO = 0;
 
 var
    MainField: Field;
-   First: Boolean;
    SavedTAttr, TAttr: Termios;
    Cmd: Char;
 begin
    Randomize;
    {TODO: customizable size of the field}
-   FieldResize(MainField, 10, 10);
+   FieldReset(MainField, 10, 10);
 
    if IsATTY(STDIN_FILENO) = 0 then
    begin
@@ -181,24 +208,18 @@ begin
 
    FieldDisplay(MainField);
 
-   First := True;
    while True do
    begin
       Read(Cmd);
       case Cmd of
-         'w': if MainField.CursorRow > 0                then dec(MainField.CursorRow);
-         's': if MainField.CursorRow < MainField.Rows-1 then inc(MainField.CursorRow);
-         'a': if MainField.CursorCol > 0                then dec(MainField.CursorCol);
-         'd': if MainField.CursorCol < MainField.Cols-1 then inc(MainField.CursorCol);
+         'w': MoveUp(MainField);
+         's': MoveDown(MainField);
+         'a': MoveLeft(MainField);
+         'd': MoveRight(MainField);
          'f': FlagAtCursor(MainField);
          {TODO: restart the game on `r`}
          'q': break; {TODO: ask the user if they really want to exit. In case of accedental press of `q`}
          ' ': begin
-                 if First then
-                 begin
-                    FieldRandomize(MainField, 20);
-                    First := False;
-                 end;
                  {TODO: Victory condition (with a restart)}
                  if OpenAtCursor(MainField) = Bomb then
                  begin
