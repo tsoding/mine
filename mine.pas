@@ -253,14 +253,14 @@ type
             'y', 'Y', ' ':
                begin
                   if (Integer(Keep) and 1) = 1
-                  then WriteLn(Answer)
+                  then WriteLn('y')
                   else Write(Chr(13), Chr(27), '[2K');
                   Exit(True)
                end;
-            'n', 'N':
+            'n', 'N', Chr(27):
                begin
                   if ((Integer(Keep) shr 1) and 1) = 1
-                  then WriteLn(Answer)
+                  then WriteLn('n')
                   else Write(Chr(13), Chr(27), '[2K');
                   Exit(False)
                end;
@@ -334,7 +334,7 @@ begin
                  FieldReset(MainField, HardcodedFieldRows, HardcodedFieldCols);
                  FieldDisplay(MainField);
               end;
-         'q': Quit := YorN('Quit?', KeepYes);
+         'q', Chr(27): Quit := YorN('Quit?', KeepYes);
          ' ': begin
                  if (StateAtCursor(MainField) <> Flagged) or YorN('Really open flagged cell?', KeepNone) then
                     if OpenAtCursor(MainField) then
