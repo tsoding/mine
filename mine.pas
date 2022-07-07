@@ -3,6 +3,16 @@ program Mine;
 
 uses Termio;
 
+const
+   STDIN_FILENO = 0;
+   {
+     TODO: customizable size of the field and bombs percentage
+       Keep in mind that OpenAt is recursive. So at certain Field size we may get a Stack Overflow.
+   }
+   HardcodedFieldRows = 10;
+   HardcodedFieldCols = 10;
+   HardcodedBombsPercentage = 17;
+
 type
    Cell = (Empty, Bomb);
    State = (Closed, Open, Flagged);
@@ -121,7 +131,7 @@ type
       begin
          if not Generated then
          begin
-            FieldRandomize(Field, 20);
+            FieldRandomize(Field, HardcodedBombsPercentage);
             Generated := True;
          end;
 
@@ -252,16 +262,6 @@ type
          end;
       end;
    end;
-
-
-const
-   STDIN_FILENO = 0;
-   {
-     TODO: customizable size of the field
-       Keep in mind that OpenAt is recursive. So at certain Field size we may get a Stack Overflow.
-   }
-   HardcodedFieldRows = 10;
-   HardcodedFieldCols = 10;
 
 var
    MainField: Field;
