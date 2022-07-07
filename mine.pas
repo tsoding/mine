@@ -129,7 +129,6 @@ type
       OpenAtCursor := OpenAt(Field, Field.CursorRow, Field.CursorCol);
    end;
 
-   {TODO: Open only unflagged bomb. Also indicate false flags somehow}
    procedure OpenAllBombs(var Field: Field);
    var
       Row, Col: Integer;
@@ -181,8 +180,7 @@ type
                                   end;
                         end;
                   Closed: Write('.');
-                  {TODO: flag does not stand out enough}
-                  Flagged: Write('P');
+                  Flagged: Write('%');
                end;
                if IsAtCursor(Field, Row, Col) then Write(']') else Write(' ');
             end;
@@ -255,6 +253,7 @@ begin
                  {TODO: Victory condition (with a restart)}
                  if OpenAtCursor(MainField) then
                  begin
+                    {TODO: indicate which bomb caused the explosion}
                     OpenAllBombs(MainField);
                     Write(Chr(27), '[', MainField.Rows,   'A');
                     Write(Chr(27), '[', MainField.Cols*3, 'D');
