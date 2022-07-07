@@ -16,6 +16,21 @@ type
       CursorCol: Integer;
    end;
 
+   function IsVictory(Field: Field): Boolean;
+   var
+      Row, Col: Integer;
+   begin
+      with Field do
+         for Row := 0 to Rows-1 do
+            for Col := 0 to Cols-1 do
+               case States[Row][Col] of
+                  Open:    if Cells[Row][Col] <> Empty then Exit(False);
+                  Closed:  Exit(False);
+                  Flagged: if Cells[Row][Col] <> Bomb then Exit(False);
+               end;
+      IsVictory := True;
+   end;
+
    procedure FlagAtCursor(var Field: Field);
    begin
       with Field do
@@ -296,28 +311,45 @@ begin
          'f': begin
                  FlagAtCursor(MainField);
                  FieldRedisplay(MainField);
+                 if IsVictory(MainField) then
+                    if YorN('You Won! Restart?', True) then
+                    begin
+                       FieldReset(MainField, HardcodedFieldRows, HardcodedFieldCols);
+                       FieldDisplay(MainField);
+                    end
+                    else Quit := True;
               end;
-         'r': if YorN('Do you want to restart?', False) then
+         'r': if YorN('Restart?', False) then
               begin
                  FieldReset(MainField, HardcodedFieldRows, HardcodedFieldCols);
                  FieldDisplay(MainField);
               end;
-         'q': Quit := YorN('Do you really want to exit?', False);
+         'q': Quit := YorN('Quit?', False);
          ' ': begin
-                 {TODO: Victory condition (with a restart)}
+                 {TODO: Ask the player if they really want to open an already flagged cell}
                  if OpenAtCursor(MainField) then
                  begin
                     {TODO: indicate which bomb caused the explosion}
                     OpenAllBombs(MainField);
                     FieldRedisplay(MainField);
-                    if YorN('You Died! Want to restart?', True) then
+                    if YorN('You Died! Restart?', True) then
                     begin
                        FieldReset(MainField, HardcodedFieldRows, HardcodedFieldCols);
                        FieldDisplay(MainField);
                     end
                     else Quit := True;
                  end
-                 else FieldRedisplay(MainField);
+                 else
+                 begin
+                    FieldRedisplay(MainField);
+                    if IsVictory(MainField) then
+                       if YorN('You Won! Restart?', True) then
+                       begin
+                          FieldReset(MainField, HardcodedFieldRows, HardcodedFieldCols);
+                          FieldDisplay(MainField);
+                       end
+                       else Quit := True
+                 end
               end;
       end;
    end;
