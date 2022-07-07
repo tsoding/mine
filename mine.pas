@@ -239,6 +239,12 @@ type
 
 const
    STDIN_FILENO = 0;
+   {
+     TODO: customizable size of the field
+       Keep in mind that OpenAt is recursive. So at certain Field size we may get a Stack Overflow.
+   }
+   HardcodedFieldRows = 10;
+   HardcodedFieldCols = 10;
 
 var
    MainField: Field;
@@ -247,11 +253,6 @@ var
    Quit: Boolean;
 begin
    Randomize;
-   {
-     TODO: customizable size of the field
-       Keep in mind that OpenAt is recursive. So at certain Field size we may get a Stack Overflow.
-   }
-   FieldReset(MainField, 10, 10);
 
    if IsATTY(STDIN_FILENO) = 0 then
    begin
@@ -266,6 +267,7 @@ begin
    TAttr.c_cc[VTIME] := 0;
    TCSetAttr(STDIN_FILENO, TCSAFLUSH, &tattr);
 
+   FieldReset(MainField, HardcodedFieldRows, HardcodedFieldCols);
    FieldDisplay(MainField);
 
    Quit := False;
@@ -293,7 +295,11 @@ begin
                  FlagAtCursor(MainField);
                  FieldRedisplay(MainField);
               end;
-         {TODO: restart the game on `r`}
+         'r': if YorN('Do you want to restart?') then
+              begin
+                 FieldReset(MainField, HardcodedFieldRows, HardcodedFieldCols);
+                 FieldDisplay(MainField);
+              end;
          'q': Quit := YorN('Do you really want to exit?');
          ' ': begin
                  {TODO: Victory condition (with a restart)}

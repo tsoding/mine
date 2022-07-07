@@ -13,9 +13,10 @@ $ ./mine
 
 ## Controls
 
-| key | description        |
+| key                                                 | description        |
 |-----------------------------------------------------|--------------------|
 | <kbd>w</kbd>,<kbd>a</kbd>,<kbd>s</kbd>,<kbd>d</kbd> | Move cursor around |
 | <kbd>SPACE</kbd>                                    | Open cell          |
 | <kbd>f</kbd>                                        | Flag/unflag cell   |
-| <kbd>q</kbd> | Quit |
+| <kbd>r</kbd>                                        | Restart            |
+| <kbd>q</kbd>                                        | Quit               |
