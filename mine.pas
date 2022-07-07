@@ -215,6 +215,9 @@ var
    MainField: Field;
    SavedTAttr, TAttr: Termios;
    Cmd: Char;
+   QuitCmd: Char;
+
+procedure Main(); 
 begin
    Randomize;
    {
@@ -247,8 +250,23 @@ begin
          'a': MoveLeft(MainField);
          'd': MoveRight(MainField);
          'f': FlagAtCursor(MainField);
-         {TODO: restart the game on `r`}
-         'q': break; {TODO: ask the user if they really want to exit. In case of accedental press of `q`}
+         'r': begin
+            Write(Chr(27), '[', MainField.Rows,   'A');
+            Write(Chr(27), '[', MainField.Cols*3, 'D');
+            Main();
+         end;
+         'q': begin
+            Write('Do you really want to quit the game?');
+            Read(QuitCmd);
+            case QuitCmd of
+               'y': begin
+                  Write(Chr(10));
+                  break;
+               end;
+            end;
+            Write(Chr(13), '                                     ', Chr(13));
+            continue;
+         end;
          ' ': begin
                  {TODO: Victory condition (with a restart)}
                  if OpenAtCursor(MainField) then
@@ -270,4 +288,8 @@ begin
    end;
 
    TCSetAttr(STDIN_FILENO, TCSANOW, SavedTAttr);
+end;
+
+begin
+   Main();
 end.
