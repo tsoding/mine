@@ -215,7 +215,7 @@ type
       FieldDisplay(Field);
    end;
 
-   function YorN(Question: String): Boolean;
+   function YorN(Question: String; KeepNo: Boolean): Boolean;
    var
       Answer: Char;
    begin
@@ -229,7 +229,9 @@ type
                          Exit(True)
                       end;
             'n', 'N': begin
-                         Write(Chr(13), Chr(27), '[2K');
+                         if KeepNo
+                         then WriteLn(Answer)
+                         else Write(Chr(13), Chr(27), '[2K');
                          Exit(False)
                       end;
          end;
@@ -295,12 +297,12 @@ begin
                  FlagAtCursor(MainField);
                  FieldRedisplay(MainField);
               end;
-         'r': if YorN('Do you want to restart?') then
+         'r': if YorN('Do you want to restart?', False) then
               begin
                  FieldReset(MainField, HardcodedFieldRows, HardcodedFieldCols);
                  FieldDisplay(MainField);
               end;
-         'q': Quit := YorN('Do you really want to exit?');
+         'q': Quit := YorN('Do you really want to exit?', False);
          ' ': begin
                  {TODO: Victory condition (with a restart)}
                  if OpenAtCursor(MainField) then
@@ -308,9 +310,12 @@ begin
                     {TODO: indicate which bomb caused the explosion}
                     OpenAllBombs(MainField);
                     FieldRedisplay(MainField);
-                    {TODO: restart the game after death}
-                    WriteLn('Oops!');
-                    Quit := True;
+                    if YorN('You Died! Want to restart?', True) then
+                    begin
+                       FieldReset(MainField, HardcodedFieldRows, HardcodedFieldCols);
+                       FieldDisplay(MainField);
+                    end
+                    else Quit := True;
                  end
                  else FieldRedisplay(MainField);
               end;
