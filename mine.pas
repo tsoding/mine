@@ -208,6 +208,35 @@ type
       with Field do if CursorCol < Cols-1 then Inc(CursorCol);
    end;
 
+   procedure FieldRedisplay(Field: Field);
+   begin
+      Write(Chr(27), '[', Field.Rows,   'A');
+      Write(Chr(27), '[', Field.Cols*3, 'D');
+      FieldDisplay(Field);
+   end;
+
+   function YorN(Question: String): Boolean;
+   var
+      Answer: Char;
+   begin
+      Write(Question, ' [y/n] ');
+      while True do
+      begin
+         Read(Answer);
+         case Answer of
+            'y', 'Y': begin
+                         WriteLn(Answer);
+                         Exit(True)
+                      end;
+            'n', 'N': begin
+                         Write(Chr(13), Chr(27), '[2K');
+                         Exit(False)
+                      end;
+         end;
+      end;
+   end;
+
+
 const
    STDIN_FILENO = 0;
 
@@ -215,6 +244,7 @@ var
    MainField: Field;
    SavedTAttr, TAttr: Termios;
    Cmd: Char;
+   Quit: Boolean;
 begin
    Randomize;
    {
@@ -238,35 +268,47 @@ begin
 
    FieldDisplay(MainField);
 
-   while True do
+   Quit := False;
+   while not Quit do
    begin
       Read(Cmd);
       case Cmd of
-         'w': MoveUp(MainField);
-         's': MoveDown(MainField);
-         'a': MoveLeft(MainField);
-         'd': MoveRight(MainField);
-         'f': FlagAtCursor(MainField);
+         'w': begin
+                 MoveUp(MainField);
+                 FieldRedisplay(MainField);
+              end;
+         's': begin
+                 MoveDown(MainField);
+                 FieldRedisplay(MainField);
+              end;
+         'a': begin
+                 MoveLeft(MainField);
+                 FieldRedisplay(MainField);
+              end;
+         'd': begin
+                 MoveRight(MainField);
+                 FieldRedisplay(MainField);
+              end;
+         'f': begin
+                 FlagAtCursor(MainField);
+                 FieldRedisplay(MainField);
+              end;
          {TODO: restart the game on `r`}
-         'q': break; {TODO: ask the user if they really want to exit. In case of accedental press of `q`}
+         'q': Quit := YorN('Do you really want to exit?');
          ' ': begin
                  {TODO: Victory condition (with a restart)}
                  if OpenAtCursor(MainField) then
                  begin
                     {TODO: indicate which bomb caused the explosion}
                     OpenAllBombs(MainField);
-                    Write(Chr(27), '[', MainField.Rows,   'A');
-                    Write(Chr(27), '[', MainField.Cols*3, 'D');
-                    FieldDisplay(MainField);
+                    FieldRedisplay(MainField);
                     {TODO: restart the game after death}
                     WriteLn('Oops!');
-                    break;
-                 end;
+                    Quit := True;
+                 end
+                 else FieldRedisplay(MainField);
               end;
       end;
-      Write(Chr(27), '[', MainField.Rows,   'A');
-      Write(Chr(27), '[', MainField.Cols*3, 'D');
-      FieldDisplay(MainField);
    end;
 
    TCSetAttr(STDIN_FILENO, TCSANOW, SavedTAttr);
