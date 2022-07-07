@@ -250,7 +250,7 @@ type
       begin
          Read(Answer);
          case Answer of
-            'y', 'Y', ' ':
+            'y', 'Y', ' ', Chr(10):
                begin
                   if (Integer(Keep) and 1) = 1
                   then WriteLn('y')
@@ -334,6 +334,7 @@ begin
                  FieldReset(MainField, HardcodedFieldRows, HardcodedFieldCols);
                  FieldDisplay(MainField);
               end;
+         {TODO: interpret ^C as request to quit}
          'q', Chr(27): Quit := YorN('Quit?', KeepYes);
          ' ': begin
                  if (StateAtCursor(MainField) <> Flagged) or YorN('Really open flagged cell?', KeepNone) then
