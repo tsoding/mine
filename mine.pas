@@ -239,7 +239,7 @@ type
       begin
          Read(Answer);
          case Answer of
-            'y', 'Y': begin
+            'y', 'Y', ' ': begin
                          WriteLn(Answer);
                          Exit(True)
                       end;
