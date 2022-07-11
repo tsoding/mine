@@ -38,9 +38,8 @@ type
          for Row := 0 to Rows-1 do
             for Col := 0 to Cols-1 do
                case States[Row][Col] of
-                  Open:    if Cells[Row][Col] <> Empty then Exit(False);
-                  Closed:  Exit(False);
-                  Flagged: if Cells[Row][Col] <> Bomb then Exit(False);
+                  Open:            if Cells[Row][Col] <> Empty then Exit(False);
+                  Closed, Flagged: if Cells[Row][Col] <> Bomb  then Exit(False);
                end;
       IsVictory := True;
    end;
@@ -156,6 +155,17 @@ type
    function OpenAtCursor(var Field: Field): Boolean;
    begin
       OpenAtCursor := OpenAt(Field, Field.CursorRow, Field.CursorCol);
+   end;
+
+   procedure FlagAllBombs(var Field: Field);
+   var
+       Row, Col: Integer;
+   begin
+      with Field do
+         for Row := 0 to Rows - 1 do
+            for Col := 0 to Cols - 1 do
+               if Cells[Row][Col] = Bomb then
+                  States[Row][Col] := Flagged;
    end;
 
    procedure OpenAllBombs(var Field: Field);
@@ -338,13 +348,6 @@ begin
          'f': begin
                  FlagAtCursor(MainField);
                  FieldRedisplay(MainField);
-                 if IsVictory(MainField) then
-                    if YorN('You Won! Restart?', KeepBoth) then
-                    begin
-                       FieldReset(MainField, HardcodedFieldRows, HardcodedFieldCols);
-                       FieldDisplay(MainField);
-                    end
-                    else Quit := True;
               end;
          'r': if YorN('Restart?', KeepYes) then
               begin
@@ -375,14 +378,18 @@ begin
                     end
                     else
                     begin
-                       FieldRedisplay(MainField);
                        if IsVictory(MainField) then
+                       begin
+                          FlagAllBombs(MainField);
+                          FieldRedisplay(MainField);
                           if YorN('You Won! Restart?', KeepBoth) then
                           begin
                              FieldReset(MainField, HardcodedFieldRows, HardcodedFieldCols);
                              FieldDisplay(MainField);
                           end
                           else Quit := True
+                       end
+                       else FieldRedisplay(MainField);
                     end
               end;
       end;
