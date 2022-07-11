@@ -20,3 +20,18 @@ $ ./mine
 | <kbd>f</kbd>                                        | Flag/unflag cell   |
 | <kbd>r</kbd>                                        | Restart            |
 | <kbd>q</kbd>                                        | Quit               |
+
+## Debug Mode
+
+Build with debug mode:
+
+```console
+$ fpc -dDEBUG mine.pas
+$ ./mine
+```
+
+### Debug Controls
+
+| key | description |
+|---|---|
+| <kbd>p</kbd> | Peek behind closed cells |

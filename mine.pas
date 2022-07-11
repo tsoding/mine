@@ -24,6 +24,9 @@ type
       Cols: Integer;
       CursorRow: Integer;
       CursorCol: Integer;
+      {$ifdef DEBUG}
+      Peek: Boolean;
+      {$endif}
    end;
    YornKeep = (KeepNone = 0, KeepYes = 1, KeepNo = 2, KeepBoth = 3);
 
@@ -180,6 +183,9 @@ type
       for Row := 0 to Rows - 1 do
           for Col := 0 to Cols - 1 do
              Field.States[Row][Col] := Closed;
+      {$ifdef DEBUG}
+      Field.Peek := False;
+      {$endif}
    end;
 
    function IsAtCursor(Field: Field; Row, Col: Integer): Boolean;
@@ -197,6 +203,17 @@ type
             for Col := 0 to Cols-1 do
             begin
                if IsAtCursor(Field, Row, Col) then Write('[') else Write(' ');
+               {$ifdef DEBUG}
+               if Peek then
+                   case Cells[Row][Col] of
+                       Bomb: Write('@');
+                       Empty: begin
+                           Nbors := CountNborBombs(Field, Row, Col);
+                           if Nbors > 0 then Write(Nbors) else Write(' ');
+                       end;
+                   end
+               else
+               {$endif}
                case States[Row][Col] of
                   Open: case Cells[Row][Col] of
                            Bomb: Write('@');
@@ -336,6 +353,12 @@ begin
               end;
          {TODO: interpret ^C as request to quit}
          'q', Chr(27): Quit := YorN('Quit?', KeepYes);
+         {$ifdef DEBUG}
+         'p': begin
+                 MainField.Peek := not MainField.Peek;
+                 FieldRedisplay(MainField);
+              end;
+         {$endif}
          ' ': begin
                  if (StateAtCursor(MainField) <> Flagged) or YorN('Really open flagged cell?', KeepNone) then
                     if OpenAtCursor(MainField) then
