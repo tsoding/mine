@@ -2,6 +2,8 @@
 
 ![thumbnail](./thumbnail.png)
 
+*This screenshot is slightly outdated, but I could not be bothered to update it, sorry*
+
 ## Quick Start
 
 It's written in [Free Pascal](https://www.freepascal.org/download.html) (sorry about that).
