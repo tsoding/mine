@@ -238,7 +238,8 @@ type
                if IsAtCursor(Field, Row, Col) then Write(']') else Write(' ');
             end;
             WriteLn
-         end
+         end;
+      Flush(Output);
    end;
 
    procedure MoveUp(var Field: Field);
@@ -273,6 +274,7 @@ type
       Answer: Char;
    begin
       Write(Question, ' [y/n] ');
+      Flush(Output);
       while True do
       begin
          Read(Answer);
@@ -282,6 +284,7 @@ type
                   if (Integer(Keep) and 1) = 1
                   then WriteLn('y')
                   else Write(Chr(13), Chr(27), '[2K');
+                  Flush(Output);
                   Exit(True)
                end;
             'n', 'N', Chr(27):
@@ -289,6 +292,7 @@ type
                   if ((Integer(Keep) shr 1) and 1) = 1
                   then WriteLn('n')
                   else Write(Chr(13), Chr(27), '[2K');
+                  Flush(Output);
                   Exit(False)
                end;
          end;
@@ -308,18 +312,16 @@ var
 begin
    Randomize;
 
-   if IsATTY(STDIN_FILENO) = 0 then
+   if IsATTY(STDIN_FILENO) <> 0 then
    begin
-      WriteLn('ERROR: this is not a terminal!');
-      Halt(1);
+      {TODO: does not work on Windows}
+      TCGetAttr(STDIN_FILENO, TAttr);
+      TCGetAttr(STDIN_FILENO, SavedTAttr);
+      TAttr.c_lflag := TAttr.c_lflag and (not (ICANON or ECHO));
+      TAttr.c_cc[VMIN] := 1;
+      TAttr.c_cc[VTIME] := 0;
+      TCSetAttr(STDIN_FILENO, TCSAFLUSH, &tattr);
    end;
-   {TODO: does not work on Windows}
-   TCGetAttr(STDIN_FILENO, TAttr);
-   TCGetAttr(STDIN_FILENO, SavedTAttr);
-   TAttr.c_lflag := TAttr.c_lflag and (not (ICANON or ECHO));
-   TAttr.c_cc[VMIN] := 1;
-   TAttr.c_cc[VTIME] := 0;
-   TCSetAttr(STDIN_FILENO, TCSAFLUSH, &tattr);
 
    FieldReset(MainField, HardcodedFieldRows, HardcodedFieldCols);
    FieldDisplay(MainField);
@@ -395,5 +397,6 @@ begin
       end;
    end;
 
-   TCSetAttr(STDIN_FILENO, TCSANOW, SavedTAttr);
+   if IsATTY(STDIN_FILENO) <> 0 then
+      TCSetAttr(STDIN_FILENO, TCSANOW, SavedTAttr)
 end.
