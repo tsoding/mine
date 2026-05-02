@@ -490,11 +490,18 @@ int main(int argc, char **argv)
                 if (!check_prompt(output_pipe_read, buf, you_won_restart)) {
                     UNREACHABLE("WAIT: weird you_won_restart sequence has been recieved");
                 }
-
-                // TODO: echo the "You Won" prompt
+                printf("%s", you_won_restart);
 
                 char default_choice = 'n';
                 write_char(input_pipe_write, default_choice);
+                if (read_char(output_pipe_read) != default_choice) {
+                    UNREACHABLE("WAIT: weird you_won_restart response has been recieved");
+                }
+                if (read_char(output_pipe_read) != '\n') {
+                    UNREACHABLE("WAIT: weird you_won_restart response has been recieved");
+                }
+                printf("%c\n", default_choice);
+
                 goto over;
             } else {
                 TODO(temp_sprintf("WAIT: unknown prompt starting with %c", buf));
