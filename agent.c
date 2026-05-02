@@ -1,7 +1,11 @@
 // AI agent for solving mine.pas
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
+#include <stdarg.h>
 #include <string.h>
+#include <ctype.h>
 #include <errno.h>
 
 #include <unistd.h>
@@ -9,8 +13,99 @@
 #include <termios.h>
 #include <poll.h>
 
-#define NOB_IMPLEMENTATION
-#include "nob.h"
+#define shift(xs, xs_sz) (assert((xs_sz) > 0), (xs_sz)--, *(xs)++)
+
+#if defined(__GNUC__) || defined(__clang__)
+//   https://gcc.gnu.org/onlinedocs/gcc-4.7.2/gcc/Function-Attributes.html
+#    ifdef __MINGW_PRINTF_FORMAT
+#        define PRINTF_FORMAT(STRING_INDEX, FIRST_TO_CHECK) __attribute__ ((format (__MINGW_PRINTF_FORMAT, STRING_INDEX, FIRST_TO_CHECK)))
+#    else
+#        define PRINTF_FORMAT(STRING_INDEX, FIRST_TO_CHECK) __attribute__ ((format (printf, STRING_INDEX, FIRST_TO_CHECK)))
+#    endif // __MINGW_PRINTF_FORMAT
+#else
+//   TODO: implement PRINTF_FORMAT for MSVC
+#    define PRINTF_FORMAT(STRING_INDEX, FIRST_TO_CHECK)
+#endif
+
+#define UNREACHABLE(...) panic(__FILE__, __LINE__, "UNREACHABLE", __VA_ARGS__)
+
+void panic(const char *file, int line, const char *label, const char *fmt, ...) PRINTF_FORMAT(4, 5);
+void panic(const char *file, int line, const char *label, const char *fmt, ...)
+{
+    fprintf(stderr, "%s:%d: %s: ", file, line, label);
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+    fprintf(stderr, "\n");
+    abort();
+}
+
+typedef struct {
+    char *items;
+    size_t count;
+    size_t capacity;
+} String_Builder;
+
+#define sb_append da_append
+#define sb_to_sv(sb) ((String_View) { .data = (sb).items, .count = (sb).count })
+
+#define DA_INIT_CAP 256
+
+#define da_reserve(da, expected_capacity)                                              \
+    do {                                                                               \
+        if ((expected_capacity) > (da)->capacity) {                                    \
+            if ((da)->capacity == 0) {                                                 \
+                (da)->capacity = DA_INIT_CAP;                                          \
+            }                                                                          \
+            while ((expected_capacity) > (da)->capacity) {                             \
+                (da)->capacity *= 2;                                                   \
+            }                                                                          \
+            (da)->items = realloc((da)->items, (da)->capacity * sizeof(*(da)->items)); \
+            assert((da)->items != NULL && "Buy more RAM lol");                         \
+        }                                                                              \
+    } while (0)
+
+// Append an item to a dynamic array
+#define da_append(da, item)                  \
+    do {                                     \
+        da_reserve((da), (da)->count + 1);   \
+        (da)->items[(da)->count++] = (item); \
+    } while (0)
+
+typedef struct {
+    const char **items;
+    size_t count;
+    size_t capacity;
+} Cmd;
+
+typedef struct {
+    size_t count;
+    const char *data;
+} String_View;
+
+String_View sv_chop_by_delim(String_View *sv, char delim)
+{
+    size_t i = 0;
+    while (i < sv->count && sv->data[i] != delim) {
+        i += 1;
+    }
+
+    String_View result = {
+        .data = sv->data,
+        .count = i,
+    };
+
+    if (i < sv->count) {
+        sv->count -= i + 1;
+        sv->data  += i + 1;
+    } else {
+        sv->count -= i;
+        sv->data  += i;
+    }
+
+    return result;
+}
 
 #define BOARD_ROWS 10
 #define BOARD_COLS 10
@@ -125,7 +220,7 @@ typedef enum {
     LOST,
 } Harness_State;
 
-const char *harness_state_name(Harness_State state)
+const char *harness_name(Harness_State state)
 {
     switch (state) {
     case START:   return "START";
@@ -187,7 +282,7 @@ void count_nbors(char *board, Coord coord, char kind, Coords *nbors)
     }
 }
 
-void thinking(const char *fmt, ...) NOB_PRINTF_FORMAT(1, 2);
+void thinking(const char *fmt, ...) PRINTF_FORMAT(1, 2);
 void thinking(const char *fmt, ...)
 {
     if (!interactive) {
@@ -203,7 +298,6 @@ void thinking(const char *fmt, ...)
 typedef enum {
     OPEN,
     FLAG,
-    HALT,
 } Solver_Action;
 
 #define da_random(da) (assert((da)->count > 0), (da)->items[rand()%(da)->count])
@@ -225,7 +319,7 @@ Solver_Action solver(char *board, Coord *coord)
     for (int row = 0; row < BOARD_ROWS; ++row) {
         for (int col = 0; col < BOARD_COLS; ++col) {
             if (board[row*BOARD_COLS + col] == '@') {
-                UNREACHABLE(temp_sprintf("A bomb slipped into the solver at row %d column %d", row, col));
+                UNREACHABLE("A bomb slipped into the solver at row %d column %d", row, col);
             }
             if (isdigit(board[row*BOARD_COLS + col])) {
                 closed_nbors.count = 0;
@@ -234,7 +328,7 @@ Solver_Action solver(char *board, Coord *coord)
                 count_nbors(board, make_coord(row, col), '%', &flagged_nbors);
                 size_t mine_count = board[row*BOARD_COLS + col] - '0';
                 if (flagged_nbors.count > mine_count) {
-                    UNREACHABLE(temp_sprintf("Overflagged! (flagged: %zu, mines: %zu)", flagged_nbors.count, mine_count));
+                    UNREACHABLE("Overflagged! (flagged: %zu, mines: %zu)", flagged_nbors.count, mine_count);
                 }
                 mine_count -= flagged_nbors.count;
 
@@ -333,15 +427,12 @@ int main(int argc, char **argv)
 
         Cmd cmd = {0};
         while (argc > 0) {
-            cmd_append(&cmd, shift(argv, argc));
+            da_append(&cmd, shift(argv, argc));
         }
-        cmd_append(&cmd, NULL);
+        da_append(&cmd, NULL);
 
         if (execvp(*cmd.items, (char *const*)cmd.items) < 0) {
-            String_Builder sb = {0};
-            cmd_render(cmd, &sb);
-            sb_append_null(&sb);
-            fprintf(stderr, "ERROR: could not start child process: %s: %s\n", sb.items, strerror(errno));
+            fprintf(stderr, "ERROR: could not start child process: %s\n", strerror(errno));
             exit(1);
         }
     }
@@ -363,7 +454,7 @@ int main(int argc, char **argv)
                 sb_append(&output, buf);
                 harness = BOARD;
             } else {
-                UNREACHABLE("START: does not look like a board");
+                UNREACHABLE("%s: does not look like a board", harness_name(harness));
             }
         } break;
         case BOARD: {
@@ -373,13 +464,13 @@ int main(int argc, char **argv)
                     sb_append(&output, buf);
                     harness = BOARD;
                 } else {
-                    UNREACHABLE(temp_sprintf("BOARD: does not look like a board: %c", buf));
+                    UNREACHABLE("%s: does not look like a board: %c", harness_name(harness), buf);
                 }
             } else if (output.count == BOARD_SIZE_IN_BYTES) {
                 harness = TURN;
             } else {
                 assert(output.count > BOARD_SIZE_IN_BYTES);
-                UNREACHABLE(temp_sprintf("BOARD: board too big (%zu, expected %d)", output.count, BOARD_SIZE_IN_BYTES));
+                UNREACHABLE("%s: board too big (%zu, expected %d)", harness_name(harness), output.count, BOARD_SIZE_IN_BYTES);
             }
         } break;
         case TURN: {
@@ -403,7 +494,6 @@ int main(int argc, char **argv)
                         case FLAG:
                             agent = WALKING;
                             break;
-                        case HALT: goto over;
                         default: UNREACHABLE("Solver_Action");
                     }
                     // fallthrough
@@ -436,7 +526,6 @@ int main(int argc, char **argv)
                             write_char(input_pipe_write, 'f');
                             agent = DECIDE;
                             break;
-                        case HALT: UNREACHABLE("Halting");
                         default:   UNREACHABLE("Solver_Action");
                         }
                     }
@@ -454,7 +543,7 @@ int main(int argc, char **argv)
 
             char buf = read_char(output_pipe_read);
             if (!check_prompt(output_pipe_read, buf, reset_escape_sequence)) {
-                UNREACHABLE("WAIT: weird reset sequence has been recieved");
+                UNREACHABLE("%s: weird reset sequence has been recieved", harness_name(harness));
             }
 
             if (interactive) {
@@ -468,7 +557,7 @@ int main(int argc, char **argv)
 
             char buf = read_char(output_pipe_read);
             if (!check_prompt(output_pipe_read, buf, you_died_restart)) {
-                UNREACHABLE("WAIT: weird you_died_restart sequence has been recieved");
+                UNREACHABLE("%s: weird you_died_restart sequence has been recieved", harness_name(harness));
             }
 
             printf("%s", you_died_restart);
@@ -476,10 +565,10 @@ int main(int argc, char **argv)
             char default_choice = 'y';
             write_char(input_pipe_write, default_choice);
             if (read_char(output_pipe_read) != default_choice) {
-                UNREACHABLE("WAIT: weird you_died_restart response has been recieved");
+                UNREACHABLE("%s: weird you_died_restart response has been recieved", harness_name(harness));
             }
             if (read_char(output_pipe_read) != '\n') {
-                UNREACHABLE("WAIT: weird you_died_restart response has been recieved");
+                UNREACHABLE("%s: weird you_died_restart response has been recieved", harness_name(harness));
             }
             printf("%c\n", default_choice);
 
@@ -490,23 +579,23 @@ int main(int argc, char **argv)
 
             char buf = read_char(output_pipe_read);
             if (!check_prompt(output_pipe_read, buf, you_won_restart)) {
-                UNREACHABLE("WAIT: weird you_won_restart sequence has been recieved");
+                UNREACHABLE("%s: weird you_won_restart sequence has been recieved", harness_name(harness));
             }
             printf("%s", you_won_restart);
 
             char default_choice = 'n';
             write_char(input_pipe_write, default_choice);
             if (read_char(output_pipe_read) != default_choice) {
-                UNREACHABLE("WAIT: weird you_won_restart response has been recieved");
+                UNREACHABLE("%s: weird you_won_restart response has been recieved", harness_name(harness));
             }
             if (read_char(output_pipe_read) != '\n') {
-                UNREACHABLE("WAIT: weird you_won_restart response has been recieved");
+                UNREACHABLE("%s: weird you_won_restart response has been recieved", harness_name(harness));
             }
             printf("%c\n", default_choice);
 
             goto over;
         } break;
-        default: UNREACHABLE("state");
+        default: UNREACHABLE("harness");
         }
     } over:
 
