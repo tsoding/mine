@@ -251,8 +251,16 @@ Solver_Action solver_(char *board, Coord *coord)
     return OPEN;
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
+    const char *program_name = shift(argv, argc);
+
+    if (argc <= 0) {
+        fprintf(stderr, "Usage: %s [COMMAND LINE...]\n", program_name);
+        fprintf(stderr, "ERROR: no command line is provided\n");
+        return 1;
+    }
+
 #ifndef THINKING
     struct termios tattr, saved_tattr;
     if (isatty(STDIN_FILENO)) {
@@ -281,8 +289,6 @@ int main(void)
     int output_pipe_read  = output_pipe[0];
     int output_pipe_write = output_pipe[1];
 
-    const char *child_path = "./mine";
-
     pid_t child = fork();
     if (child == 0) {
         if (dup2(input_pipe_read, STDIN_FILENO) < 0) {
@@ -297,8 +303,17 @@ int main(void)
         }
         close(output_pipe_read);
 
-        if (execlp(child_path, child_path, NULL) < 0) {
-            fprintf(stderr, "ERROR: could not start child process %s: %s\n", child_path, strerror(errno));
+        Cmd cmd = {0};
+        while (argc > 0) {
+            cmd_append(&cmd, shift(argv, argc));
+        }
+        cmd_append(&cmd, NULL);
+
+        if (execvp(*cmd.items, (char *const*)cmd.items) < 0) {
+            String_Builder sb = {0};
+            cmd_render(cmd, &sb);
+            sb_append_null(&sb);
+            fprintf(stderr, "ERROR: could not start child process: %s: %s\n", sb.items, strerror(errno));
             exit(1);
         }
     }
