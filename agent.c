@@ -45,7 +45,6 @@ void parse_board(String_View sv, char *board, int *cur_row, int *cur_col)
     }
     assert(cur_row >= 0);
     assert(cur_col >= 0);
-
 }
 
 void trace_board(char *board, size_t cur_row, size_t cur_col)
@@ -64,24 +63,34 @@ void trace_board(char *board, size_t cur_row, size_t cur_col)
     }
 }
 
-bool everything_is_closed(char *board)
+bool something_is(char *board, char what)
 {
     for (size_t row = 0; row < BOARD_ROWS; ++row) {
         for (size_t col = 0; col < BOARD_COLS; ++col) {
-            if (board[row*BOARD_COLS + col] != '.') return false;
+            if (board[row*BOARD_COLS + col] == what) return true;
+        }
+    }
+    return false;
+}
+
+bool everything_is(char *board, char what)
+{
+    for (size_t row = 0; row < BOARD_ROWS; ++row) {
+        for (size_t col = 0; col < BOARD_COLS; ++col) {
+            if (board[row*BOARD_COLS + col] != what) return false;
         }
     }
     return true;
 }
 
-bool something_is_closed(char *board)
+static inline bool everything_is_closed(char *board)
 {
-    for (size_t row = 0; row < BOARD_ROWS; ++row) {
-        for (size_t col = 0; col < BOARD_COLS; ++col) {
-            if (board[row*BOARD_COLS + col] == '.') return true;
-        }
-    }
-    return false;
+    return everything_is(board, '.');
+}
+
+inline static bool something_is_closed(char *board)
+{
+    return something_is(board, '.');
 }
 
 void write_char(int fd, char cmd)
@@ -111,7 +120,7 @@ typedef enum {
     BOARD,
     TURN,
     WAIT,
-    POTENTION_WIN,
+    WIN,
 } Harness_State;
 
 const char *harness_state_name(Harness_State state)
@@ -195,10 +204,10 @@ typedef enum {
 
 #define da_random(da) (assert((da)->count > 0), (da)->items[rand()%(da)->count])
 
-Solver_Action solver_(char *board, Coord *coord)
+Solver_Action solver(char *board, Coord *coord)
 {
     if (everything_is_closed(board)) {
-        thinking("Everything is closed. Opening a random cell.");
+        thinking("Everything is closed. This is the start of the game. Opening a random cell.");
         coord->row = rand()%BOARD_ROWS;
         coord->col = rand()%BOARD_COLS;
         return OPEN;
@@ -211,13 +220,18 @@ Solver_Action solver_(char *board, Coord *coord)
 
     for (int row = 0; row < BOARD_ROWS; ++row) {
         for (int col = 0; col < BOARD_COLS; ++col) {
+            if (board[row*BOARD_COLS + col] == '@') {
+                UNREACHABLE(temp_sprintf("A bomb slipped into the solver at row %d column %d", row, col));
+            }
             if (isdigit(board[row*BOARD_COLS + col])) {
                 closed_nbors.count = 0;
                 flagged_nbors.count = 0;
                 count_nbors(board, make_coord(row, col), '.', &closed_nbors);
                 count_nbors(board, make_coord(row, col), '%', &flagged_nbors);
                 size_t mine_count = board[row*BOARD_COLS + col] - '0';
-                assert(flagged_nbors.count <= mine_count);
+                if (flagged_nbors.count > mine_count) {
+                    UNREACHABLE(temp_sprintf("Overflagged! (flagged: %zu, mines: %zu)", flagged_nbors.count, mine_count));
+                }
                 mine_count -= flagged_nbors.count;
 
                 if (mine_count == 0) {
@@ -373,10 +387,13 @@ int main(int argc, char **argv)
             output.count = 0;
             trace_board(board, cur_row, cur_col);
 
-            if (something_is_closed(board)) {
+            if (something_is(board, '@')) {
+                thinking("I see bombs. Looks like we died...");
+                harness = WAIT;
+            } else if (something_is(board, '.')) {
                 switch (agent) {
                 case DECIDE:
-                    solver_action = solver_(board, &agent_target);
+                    solver_action = solver(board, &agent_target);
                     switch (solver_action) {
                         case OPEN: // fallthrough
                         case FLAG:
@@ -424,7 +441,8 @@ int main(int argc, char **argv)
                     default: UNREACHABLE("Action_State");
                 }
             } else {
-                harness = POTENTION_WIN;
+                thinking("I see neither bombs nor closed cells. Looks like we won!");
+                harness = WIN;
             }
         } break;
         case WAIT: {
@@ -444,6 +462,9 @@ int main(int argc, char **argv)
                     UNREACHABLE("WAIT: weird you_died_restart sequence has been recieved");
                 }
 
+                if (agent != DECIDE) {
+                    UNREACHABLE("WAIT: the state of the agent was not reset properly");
+                }
                 printf("%s", you_died_restart);
 
                 char default_choice = 'y';
@@ -461,16 +482,23 @@ int main(int argc, char **argv)
                 TODO(temp_sprintf("WAIT: unknown prompt starting with %c", buf));
             }
         } break;
-        case POTENTION_WIN: {
+        case WIN: {
+            // TODO: merge WIN with WAIT?
             const char *you_won_restart = "You Won! Restart? [y/n] ";
             char buf = read_char(output_pipe_read);
-            if (!check_prompt(output_pipe_read, buf, you_won_restart)) {
-                UNREACHABLE("WAIT: weird you_won_restart sequence has been recieved");
-            }
+            if (buf == *you_won_restart) {
+                if (!check_prompt(output_pipe_read, buf, you_won_restart)) {
+                    UNREACHABLE("WAIT: weird you_won_restart sequence has been recieved");
+                }
 
-            char default_choice = 'n';
-            write_char(input_pipe_write, default_choice);
-            goto over;
+                // TODO: echo the "You Won" prompt
+
+                char default_choice = 'n';
+                write_char(input_pipe_write, default_choice);
+                goto over;
+            } else {
+                TODO(temp_sprintf("WAIT: unknown prompt starting with %c", buf));
+            }
         } break;
         default: UNREACHABLE("state");
         }
@@ -484,3 +512,6 @@ int main(int argc, char **argv)
 
     return 0;
 }
+// TODO: maybe kill the child process and restore the terminal state somewhere in atexit
+//   Sometimes when the solver hits an abort() the child process just turns into zombie.
+//   I'm not sure if atexit is even triggered on abort(). I need to double check that.

@@ -36,6 +36,7 @@ int main(int argc, char **argv)
 
     if (run) {
         cmd_append(&cmd, "./agent");
+        cmd_append(&cmd, "./mine");
         if (!cmd_run(&cmd)) return 1;
     }
 
