@@ -37,3 +37,12 @@ $ ./mine
 | key | description |
 |---|---|
 | <kbd>p</kbd> | Peek behind closed cells |
+
+## Solver
+
+The game comes with an automatic solver written in C. See [./agent.c](./agent.c).
+
+```console
+$ cc -o agent agent.c
+$ ./agent -i ./mine
+```
