@@ -11,12 +11,12 @@
 #define NOB_IMPLEMENTATION
 #include "nob.h"
 
-// #define THINKING
-
 #define BOARD_ROWS 10
 #define BOARD_COLS 10
 #define COL_WIDTH 3
 #define BOARD_SIZE_IN_BYTES ((BOARD_COLS*COL_WIDTH)*BOARD_ROWS + BOARD_ROWS)
+
+bool interactive = false;
 
 bool is_board_char(char x)
 {
@@ -59,9 +59,9 @@ void trace_board(char *board, size_t cur_row, size_t cur_col)
         }
         printf("\n");
     }
-#ifndef THINKING
-    usleep(5*1000);
-#endif // THINKING
+    if (interactive) {
+        usleep(5*1000);
+    }
 }
 
 bool everything_is_closed(char *board)
@@ -174,20 +174,18 @@ void count_nbors(char *board, Coord coord, char kind, Coords *nbors)
     }
 }
 
-#ifdef THINKING
 void thinking(const char *fmt, ...) NOB_PRINTF_FORMAT(1, 2);
 void thinking(const char *fmt, ...)
 {
-    printf("THINKING: ");
-    va_list args;
-    va_start(args, fmt);
-    vprintf(fmt, args);
-    va_end(args);
-    printf("\n");
+    if (!interactive) {
+        printf("THINKING: ");
+        va_list args;
+        va_start(args, fmt);
+        vprintf(fmt, args);
+        va_end(args);
+        printf("\n");
+    }
 }
-#else
-#define thinking(...)
-#endif // THINKING
 
 typedef enum {
     OPEN,
@@ -255,23 +253,35 @@ int main(int argc, char **argv)
 {
     const char *program_name = shift(argv, argc);
 
+    while (argc > 0) {
+        if (strcmp(argv[0], "-i") == 0) {
+            interactive = true;
+            shift(argv, argc);
+        } else {
+            break;
+        }
+    }
+
     if (argc <= 0) {
-        fprintf(stderr, "Usage: %s [COMMAND LINE...]\n", program_name);
+        fprintf(stderr, "Usage: %s [OPTIONS] [COMMAND LINE...]\n", program_name);
+        fprintf(stderr, "OPTIONS:\n");
+        fprintf(stderr, "  -i\n");
+        fprintf(stderr, "    Run the solver in interactive mode\n");
         fprintf(stderr, "ERROR: no command line is provided\n");
         return 1;
     }
 
-#ifndef THINKING
     struct termios tattr, saved_tattr;
-    if (isatty(STDIN_FILENO)) {
-        tcgetattr(STDIN_FILENO, &tattr);
-        saved_tattr = tattr;
-        tattr.c_lflag    &= (~(ICANON | ECHO));
-        tattr.c_cc[VMIN]  = 1;
-        tattr.c_cc[VTIME] = 0;
-        tcsetattr(STDIN_FILENO, TCSAFLUSH, &tattr);
+    if (interactive) {
+        if (isatty(STDIN_FILENO)) {
+            tcgetattr(STDIN_FILENO, &tattr);
+            saved_tattr = tattr;
+            tattr.c_lflag    &= (~(ICANON | ECHO));
+            tattr.c_cc[VMIN]  = 1;
+            tattr.c_cc[VTIME] = 0;
+            tcsetattr(STDIN_FILENO, TCSAFLUSH, &tattr);
+        }
     }
-#endif // THINKING
 
     int input_pipe[2];
     if (pipe(input_pipe) < 0) {
@@ -426,9 +436,9 @@ int main(int argc, char **argv)
                     UNREACHABLE("WAIT: weird reset sequence has been recieved");
                 }
                 harness = BOARD;
-#ifndef THINKING
-                printf("%s", reset_escape_sequence);
-#endif // THINKING
+                if (interactive) {
+                    printf("%s", reset_escape_sequence);
+                }
             } else if (buf == *you_died_restart) {
                 if (!check_prompt(output_pipe_read, buf, you_died_restart)) {
                     UNREACHABLE("WAIT: weird you_died_restart sequence has been recieved");
@@ -466,11 +476,11 @@ int main(int argc, char **argv)
         }
     } over:
 
-#ifndef THINKING
-    if (isatty(STDIN_FILENO)) {
-        tcsetattr(STDIN_FILENO, TCSANOW, &saved_tattr);
+    if (interactive) {
+        if (isatty(STDIN_FILENO)) {
+            tcsetattr(STDIN_FILENO, TCSANOW, &saved_tattr);
+        }
     }
-#endif // THINKING
 
     return 0;
 }
