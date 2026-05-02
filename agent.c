@@ -13,20 +13,6 @@
 
 // #define THINKING
 
-bool set_nonblocking(int fd)
-{
-    int mask = fcntl(fd, F_GETFL);
-    if (mask < 0) {
-        fprintf(stderr, "ERROR: could not set IO as non-blocking: %s\n", strerror(errno));
-        return false;
-    }
-    if (fcntl(fd, F_SETFL, mask | O_NONBLOCK) < 0) {
-        fprintf(stderr, "ERROR: could not set IO as non-blocking: %s\n", strerror(errno));
-        return false;
-    }
-    return true;
-}
-
 #define BOARD_ROWS 10
 #define BOARD_COLS 10
 #define COL_WIDTH 3
@@ -320,10 +306,6 @@ int main(void)
     close(input_pipe_read);
     close(output_pipe_write);
 
-    // if (!set_nonblocking(input_pipe_write)) return 1;
-    // if (!set_nonblocking(output_pipe_read)) return 1;
-    // if (!set_nonblocking(STDIN_FILENO)) return 1;
-
     Harness_State harness = START;
     Agent_State agent = DECIDE;
     Coord agent_target;
@@ -331,7 +313,6 @@ int main(void)
 
     String_Builder output = {0};
     for (;;) { // Agentic loop
-        // printf("state = %s\n", state_name(state));
         switch (harness) {
         case START: {
             char buf = read_char(output_pipe_read);
