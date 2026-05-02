@@ -59,7 +59,7 @@ void trace_board(char *board, size_t cur_row, size_t cur_col)
         printf("\n");
     }
     if (interactive) {
-        usleep(5*1000);
+        usleep(10*1000);
     }
 }
 
