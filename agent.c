@@ -119,17 +119,20 @@ typedef enum {
     START,
     BOARD,
     TURN,
-    WAIT,
-    WIN,
+    REFRESH,
+    WON,
+    LOST,
 } Harness_State;
 
 const char *harness_state_name(Harness_State state)
 {
     switch (state) {
-    case START: return "START";
-    case BOARD: return "BOARD";
-    case TURN:  return "TURN";
-    case WAIT:  return "WAIT";
+    case START:   return "START";
+    case BOARD:   return "BOARD";
+    case TURN:    return "TURN";
+    case REFRESH: return "REFRESH";
+    case WON:     return "WON";
+    case LOST:    return "LOST";
     default: UNREACHABLE("State");
     }
 }
@@ -389,7 +392,7 @@ int main(int argc, char **argv)
 
             if (something_is(board, '@')) {
                 thinking("I see bombs. Looks like we died...");
-                harness = WAIT;
+                harness = LOST;
             } else if (something_is(board, '.')) {
                 switch (agent) {
                 case DECIDE:
@@ -436,76 +439,71 @@ int main(int argc, char **argv)
                         default:   UNREACHABLE("Solver_Action");
                         }
                     }
-                    harness = WAIT;
+                    harness = REFRESH;
                     break;
                     default: UNREACHABLE("Action_State");
                 }
             } else {
                 thinking("I see neither bombs nor closed cells. Looks like we won!");
-                harness = WIN;
+                harness = WON;
             }
         } break;
-        case WAIT: {
-            char buf = read_char(output_pipe_read);
+        case REFRESH: {
             const char *reset_escape_sequence = "\x1b[10A\x1b[30D";
-            const char *you_died_restart = "You Died! Restart? [y/n] ";
-            if (buf == *reset_escape_sequence) {
-                if (!check_prompt(output_pipe_read, buf, reset_escape_sequence)) {
-                    UNREACHABLE("WAIT: weird reset sequence has been recieved");
-                }
-                harness = BOARD;
-                if (interactive) {
-                    printf("%s", reset_escape_sequence);
-                }
-            } else if (buf == *you_died_restart) {
-                if (!check_prompt(output_pipe_read, buf, you_died_restart)) {
-                    UNREACHABLE("WAIT: weird you_died_restart sequence has been recieved");
-                }
 
-                if (agent != DECIDE) {
-                    UNREACHABLE("WAIT: the state of the agent was not reset properly");
-                }
-                printf("%s", you_died_restart);
-
-                char default_choice = 'y';
-                write_char(input_pipe_write, default_choice);
-                if (read_char(output_pipe_read) != default_choice) {
-                    UNREACHABLE("WAIT: weird you_died_restart response has been recieved");
-                }
-                if (read_char(output_pipe_read) != '\n') {
-                    UNREACHABLE("WAIT: weird you_died_restart response has been recieved");
-                }
-                printf("%c\n", default_choice);
-
-                harness = BOARD;
-            } else {
-                TODO(temp_sprintf("WAIT: unknown prompt starting with %c", buf));
-            }
-        } break;
-        case WIN: {
-            // TODO: merge WIN with WAIT?
-            const char *you_won_restart = "You Won! Restart? [y/n] ";
             char buf = read_char(output_pipe_read);
-            if (buf == *you_won_restart) {
-                if (!check_prompt(output_pipe_read, buf, you_won_restart)) {
-                    UNREACHABLE("WAIT: weird you_won_restart sequence has been recieved");
-                }
-                printf("%s", you_won_restart);
-
-                char default_choice = 'n';
-                write_char(input_pipe_write, default_choice);
-                if (read_char(output_pipe_read) != default_choice) {
-                    UNREACHABLE("WAIT: weird you_won_restart response has been recieved");
-                }
-                if (read_char(output_pipe_read) != '\n') {
-                    UNREACHABLE("WAIT: weird you_won_restart response has been recieved");
-                }
-                printf("%c\n", default_choice);
-
-                goto over;
-            } else {
-                TODO(temp_sprintf("WAIT: unknown prompt starting with %c", buf));
+            if (!check_prompt(output_pipe_read, buf, reset_escape_sequence)) {
+                UNREACHABLE("WAIT: weird reset sequence has been recieved");
             }
+
+            if (interactive) {
+                printf("%s", reset_escape_sequence);
+            }
+
+            harness = BOARD;
+        } break;
+        case LOST: {
+            const char *you_died_restart = "You Died! Restart? [y/n] ";
+
+            char buf = read_char(output_pipe_read);
+            if (!check_prompt(output_pipe_read, buf, you_died_restart)) {
+                UNREACHABLE("WAIT: weird you_died_restart sequence has been recieved");
+            }
+
+            printf("%s", you_died_restart);
+
+            char default_choice = 'y';
+            write_char(input_pipe_write, default_choice);
+            if (read_char(output_pipe_read) != default_choice) {
+                UNREACHABLE("WAIT: weird you_died_restart response has been recieved");
+            }
+            if (read_char(output_pipe_read) != '\n') {
+                UNREACHABLE("WAIT: weird you_died_restart response has been recieved");
+            }
+            printf("%c\n", default_choice);
+
+            harness = BOARD;
+        } break;
+        case WON: {
+            const char *you_won_restart = "You Won! Restart? [y/n] ";
+
+            char buf = read_char(output_pipe_read);
+            if (!check_prompt(output_pipe_read, buf, you_won_restart)) {
+                UNREACHABLE("WAIT: weird you_won_restart sequence has been recieved");
+            }
+            printf("%s", you_won_restart);
+
+            char default_choice = 'n';
+            write_char(input_pipe_write, default_choice);
+            if (read_char(output_pipe_read) != default_choice) {
+                UNREACHABLE("WAIT: weird you_won_restart response has been recieved");
+            }
+            if (read_char(output_pipe_read) != '\n') {
+                UNREACHABLE("WAIT: weird you_won_restart response has been recieved");
+            }
+            printf("%c\n", default_choice);
+
+            goto over;
         } break;
         default: UNREACHABLE("state");
         }
