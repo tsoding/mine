@@ -609,4 +609,3 @@ int main(int argc, char **argv)
 }
 // TODO: maybe kill the child process and restore the terminal state somewhere in atexit
 //   Sometimes when the solver hits an abort() the child process just turns into zombie.
-//   I'm not sure if atexit is even triggered on abort(). I need to double check that.
